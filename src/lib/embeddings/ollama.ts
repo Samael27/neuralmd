@@ -11,6 +11,43 @@ const MODEL_DIMENSIONS: Record<string, number> = {
   'snowflake-arctic-embed': 1024,
 }
 
+let modelPulled = false
+
+async function ensureModelLoaded(): Promise<void> {
+  if (modelPulled) return
+  
+  try {
+    // Check if model exists
+    const response = await fetch(`${OLLAMA_URL}/api/tags`)
+    if (response.ok) {
+      const data = await response.json()
+      const models = data.models || []
+      const hasModel = models.some((m: any) => 
+        m.name === OLLAMA_MODEL || m.name === `${OLLAMA_MODEL}:latest`
+      )
+      
+      if (!hasModel) {
+        console.log(`📥 Pulling Ollama model: ${OLLAMA_MODEL}...`)
+        const pullResponse = await fetch(`${OLLAMA_URL}/api/pull`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: OLLAMA_MODEL, stream: false }),
+        })
+        
+        if (pullResponse.ok) {
+          console.log(`✅ Model ${OLLAMA_MODEL} pulled successfully`)
+        } else {
+          console.warn(`⚠️ Failed to pull model: ${await pullResponse.text()}`)
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Could not check/pull Ollama model:', error)
+  }
+  
+  modelPulled = true
+}
+
 export class OllamaProvider implements EmbeddingProvider {
   name = 'ollama'
   
@@ -19,6 +56,8 @@ export class OllamaProvider implements EmbeddingProvider {
   }
   
   async generateEmbedding(text: string): Promise<number[]> {
+    await ensureModelLoaded()
+    
     const response = await fetch(`${OLLAMA_URL}/api/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

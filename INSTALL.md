@@ -108,7 +108,7 @@ For managed deployment on your VPS.
 
 1. Go to your Coolify dashboard
 2. Add new resource → Application → Docker Compose
-3. Source: GitHub → `YOUR_USERNAME/neuralmd`
+3. Source: GitHub → `Samael27/neuralmd`
 4. Branch: `main`
 
 ### Step 2: Configure environment variables

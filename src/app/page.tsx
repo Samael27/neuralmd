@@ -74,7 +74,7 @@ export default function Home() {
         <div className="text-center mt-12 text-gray-500 text-sm">
           <p>Open Source • Self-Hosted • AI-Native</p>
           <p className="mt-2">
-            <a href="https://github.com/YOUR_USERNAME/neuralmd" className="text-blue-400 hover:underline">
+            <a href="https://github.com/Samael27/neuralmd" className="text-blue-400 hover:underline">
               GitHub
             </a>
           </p>

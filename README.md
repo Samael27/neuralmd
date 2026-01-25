@@ -19,7 +19,7 @@ NeuralMD is your second brain — a place where **humans and AI** collaborate to
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/neuralmd.git
+git clone https://github.com/Samael27/neuralmd.git
 cd neural-md
 
 # Copy environment file

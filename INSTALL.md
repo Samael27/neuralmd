@@ -30,7 +30,7 @@ Do you have Docker?
 ### Step 1: Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/neuralmd.git
+git clone https://github.com/Samael27/neuralmd.git
 cd neuralmd
 ```
 
@@ -168,7 +168,7 @@ ollama pull nomic-embed-text
 ### Step 3: Clone and setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/neuralmd.git
+git clone https://github.com/Samael27/neuralmd.git
 cd neuralmd
 npm install
 ```

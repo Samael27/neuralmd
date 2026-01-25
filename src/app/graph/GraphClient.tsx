@@ -39,8 +39,14 @@ interface Props {
 
 export default function GraphClient({ initialData, initialThreshold }: Props) {
   const router = useRouter()
-  const [data] = useState<GraphData>(initialData)
+  const [data, setData] = useState<GraphData>(initialData)
   const [threshold, setThreshold] = useState(initialThreshold)
+  
+  // Update data when initialData changes (after navigation)
+  useEffect(() => {
+    setData(initialData)
+    setThreshold(initialThreshold)
+  }, [initialData, initialThreshold])
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
@@ -65,6 +71,7 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     setThreshold(newThreshold)
     // Refresh page with new threshold
     router.push(`/graph?threshold=${newThreshold}`)
+    router.refresh()
   }
 
   const graphData = data ? {

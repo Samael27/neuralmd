@@ -312,7 +312,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ...(tags && tags.length > 0 ? { tags: { hasSome: tags } } : {}),
             },
             take: limit,
-            orderBy: { updatedAt: 'desc' },
+            orderBy: { createdAt: 'desc' },
           });
           return {
             content: [
@@ -444,7 +444,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           where: tags && tags.length > 0 ? { tags: { hasSome: tags } } : undefined,
           take: limit,
           skip: offset,
-          orderBy: { updatedAt: 'desc' },
+          orderBy: { createdAt: 'desc' },
           select: {
             id: true,
             title: true,
@@ -494,7 +494,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const notes = await prisma.note.findMany({
     take: 100,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
     select: { id: true, title: true },
   });
 

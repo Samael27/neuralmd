@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   
   const notes = await prisma.note.findMany({
     where,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
     take: limit,
     skip: offset,
     select: {

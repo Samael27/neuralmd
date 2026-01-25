@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { deleteNote } from './actions'
 
 export default function DeleteButton({ noteId }: { noteId: string }) {
   const router = useRouter()
@@ -10,16 +11,12 @@ export default function DeleteButton({ noteId }: { noteId: string }) {
 
   const handleDelete = async () => {
     setLoading(true)
-    try {
-      const res = await fetch(`/api/notes/${noteId}`, {
-        method: 'DELETE'
-      })
-      if (res.ok) {
-        router.push('/notes')
-      }
-    } catch (err) {
-      console.error('Delete failed:', err)
-    } finally {
+    const result = await deleteNote(noteId)
+    
+    if (result.success) {
+      router.push('/notes')
+    } else {
+      console.error('Delete failed:', result.error)
       setLoading(false)
       setConfirming(false)
     }

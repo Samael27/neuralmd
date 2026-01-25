@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createNote, checkSecrets } from './actions'
 
 interface SecretWarning {
   type: string
@@ -22,66 +23,45 @@ export default function NewNotePage() {
   const [sanitizeSecrets, setSanitizeSecrets] = useState(false)
   
   // Debounced secrets check
-  const checkSecrets = useCallback(async (text: string) => {
+  const doCheckSecrets = useCallback(async (text: string) => {
     if (!text || text.length < 10) {
       setSecretsWarning([])
       return
     }
-    try {
-      const res = await fetch('/api/check-secrets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setSecretsWarning(data.secrets || [])
-      }
-    } catch {
-      // Ignore errors
-    }
+    const result = await checkSecrets(text)
+    setSecretsWarning(result.secrets || [])
   }, [])
   
   useEffect(() => {
     const timer = setTimeout(() => {
-      checkSecrets(`${title}\n${content}`)
+      doCheckSecrets(`${title}\n${content}`)
     }, 500)
     return () => clearTimeout(timer)
-  }, [title, content, checkSecrets])
+  }, [title, content, doCheckSecrets])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    try {
-      const res = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          content,
-          tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-          source,
-          sanitizeSecrets: sanitizeSecrets,
-          allowSecrets: secretsWarning.length > 0 && !sanitizeSecrets
-        })
-      })
+    const result = await createNote({
+      title,
+      content,
+      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      source,
+      sanitizeSecrets,
+      allowSecrets: secretsWarning.length > 0 && !sanitizeSecrets
+    })
 
-      if (!res.ok) {
-        const data = await res.json()
-        if (data.secrets) {
-          setSecretsWarning(data.secrets)
-          throw new Error('Secrets détectés - cochez "Masquer les secrets" ou modifiez le contenu')
-        }
-        throw new Error(data.error || 'Erreur lors de la création')
+    if (result.success && result.noteId) {
+      router.push(`/notes/${result.noteId}`)
+    } else {
+      if (result.secrets) {
+        setSecretsWarning(result.secrets)
+        setError('Secrets détectés - cochez "Masquer les secrets" ou modifiez le contenu')
+      } else {
+        setError(result.error || 'Une erreur est survenue')
       }
-
-      const data = await res.json()
-      router.push(`/notes/${data.note.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
-    } finally {
       setLoading(false)
     }
   }

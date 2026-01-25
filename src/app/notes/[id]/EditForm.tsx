@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { updateNote } from './actions'
 
 interface Note {
   id: string
@@ -25,27 +26,17 @@ export default function EditForm({ note }: { note: Note }) {
     setLoading(true)
     setError('')
 
-    try {
-      const res = await fetch(`/api/notes/${note.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          content,
-          tags: tags.split(',').map(t => t.trim()).filter(Boolean)
-        })
-      })
+    const result = await updateNote(note.id, {
+      title,
+      content,
+      tags: tags.split(',').map(t => t.trim()).filter(Boolean)
+    })
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Erreur lors de la mise à jour')
-      }
-
+    if (result.success) {
       router.push(`/notes/${note.id}`)
       router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
-    } finally {
+    } else {
+      setError(result.error || 'Une erreur est survenue')
       setLoading(false)
     }
   }
@@ -61,70 +52,77 @@ export default function EditForm({ note }: { note: Note }) {
           <h1 className="text-2xl font-bold">Modifier la note</h1>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400">
+            {error}
+          </div>
+        )}
 
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">
               Titre
             </label>
             <input
               type="text"
+              id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Titre de la note"
             />
           </div>
 
+          {/* Content */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="content" className="block text-sm font-medium text-gray-300 mb-2">
               Contenu (Markdown)
             </label>
             <textarea
+              id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               required
               rows={15}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white font-mono text-sm resize-y"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              placeholder="Contenu de la note en Markdown..."
             />
           </div>
 
+          {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="tags" className="block text-sm font-medium text-gray-300 mb-2">
               Tags (séparés par des virgules)
             </label>
             <input
               type="text"
+              id="tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="tag1, tag2, tag3"
             />
           </div>
 
+          {/* Source indicator */}
+          <div className="text-sm text-gray-500">
+            Source: {note.source === 'ai' ? '🤖 AI' : '👤 Humain'}
+          </div>
+
+          {/* Actions */}
           <div className="flex gap-4 pt-4">
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 rounded-lg font-medium transition-colors flex items-center gap-2"
+              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
             >
-              {loading ? (
-                <>
-                  <span className="animate-spin">⏳</span> Enregistrement...
-                </>
-              ) : (
-                <>💾 Enregistrer</>
-              )}
+              {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
             </button>
             <Link
               href={`/notes/${note.id}`}
-              className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-center"
             >
               Annuler
             </Link>

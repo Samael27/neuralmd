@@ -1,0 +1,43 @@
+{
+  "name": "neural-md",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-native knowledge base with semantic connections",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "mcp:build": "tsc -p tsconfig.mcp.json",
+    "mcp": "node dist/mcp/server.js",
+    "mcp:dev": "tsx src/mcp/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@prisma/client": "^5.22.0",
+    "next": "14.2.21",
+    "openai": "^4.77.0",
+    "pgvector": "^0.2.0",
+    "prisma": "^5.22.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-force-graph-2d": "^1.29.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.23",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.0.0",
+    "typescript": "^5"
+  }
+}

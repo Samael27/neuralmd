@@ -1,0 +1,71 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  
+  // Vector embedding for semantic search
+  // Dimensions depend on the embedding provider:
+  // - OpenAI text-embedding-3-small: 1536
+  // - Ollama nomic-embed-text: 768
+  // Using Unsupported to handle variable dimensions via raw SQL
+  embedding Unsupported("vector")?
+  
+  // Metadata
+  tags      String[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Source tracking (human or AI)
+  source    String   @default("human") // "human" | "ai" | "import"
+  sourceRef String?  // Optional reference (e.g., AI session ID)
+
+  @@map("notes")
+}
+
+model Connection {
+  id        String   @id @default(cuid())
+  
+  // The two connected notes
+  fromId    String
+  toId      String
+  
+  // Connection strength (0-1, based on semantic similarity)
+  strength  Float
+  
+  // How the connection was made
+  type      String   @default("semantic") // "semantic" | "manual" | "reference"
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([fromId, toId])
+  @@map("connections")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String    // Friendly name for the key
+  keyHash     String    @unique // SHA256 hash of the key (never store plaintext)
+  
+  isActive    Boolean   @default(true)
+  
+  // Optional expiration
+  expiresAt   DateTime?
+  
+  // Usage tracking
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  
+  @@map("api_keys")
+}

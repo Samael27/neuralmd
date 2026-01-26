@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import SearchBar from '@/components/SearchBar'
-import NoteCard from '@/components/NoteCard'
+import NotesList from '@/components/NotesList'
 import ImportExportButtons from '@/components/ImportExportButtons'
 import FolderTree from '@/components/FolderTree'
+import SortSelector, { sortNotes, SortOption } from '@/components/SortSelector'
 import { buildFolderTree } from '@/lib/folders'
 
 interface Note {
@@ -118,14 +119,19 @@ async function getAllTags(): Promise<string[]> {
 export default async function NotesPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; folder?: string }>
+  searchParams: Promise<{ q?: string; folder?: string; sort?: SortOption }>
 }) {
   const params = await searchParams
   const query = params.q
   const folder = params.folder
-  const { notes, isSearch } = await getNotes(query, folder)
+  const sort = params.sort || 'newest'
+  
+  const { notes: rawNotes, isSearch } = await getNotes(query, folder)
   const allTags = await getAllTags()
   const folderTree = buildFolderTree(allTags)
+  
+  // Apply sorting (don't sort search results - they're sorted by relevance)
+  const notes = isSearch ? rawNotes : sortNotes(rawNotes, sort)
 
   return (
     <main className="min-h-screen">
@@ -163,9 +169,14 @@ export default async function NotesPage({
               </div>
             </div>
 
-            {/* Search */}
-            <div className="mb-8">
-              <SearchBar initialQuery={query || ''} />
+            {/* Search + Sort */}
+            <div className="flex gap-4 mb-8">
+              <div className="flex-1">
+                <SearchBar initialQuery={query || ''} />
+              </div>
+              {!isSearch && (
+                <SortSelector currentSort={sort} />
+              )}
             </div>
 
             {/* Current folder indicator */}
@@ -193,11 +204,7 @@ export default async function NotesPage({
 
             {/* Notes list */}
             {notes.length > 0 ? (
-              <div className="space-y-4">
-                {notes.map((note) => (
-                  <NoteCard key={note.id} note={note} showSimilarity={isSearch} />
-                ))}
-              </div>
+              <NotesList notes={notes} showSimilarity={isSearch} />
             ) : (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">📭</div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createNote, checkSecrets } from './actions'
+import MarkdownEditor from '@/components/MarkdownEditor'
 
 interface SecretWarning {
   type: string
@@ -133,12 +134,10 @@ export default function NewNotePage() {
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Contenu (Markdown)
             </label>
-            <textarea
+            <MarkdownEditor
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
+              onChange={setContent}
               rows={12}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white font-mono text-sm resize-y"
               placeholder="Écrivez votre note en Markdown..."
             />
           </div>

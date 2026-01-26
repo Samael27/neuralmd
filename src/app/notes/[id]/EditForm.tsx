@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { updateNote } from './actions'
+import MarkdownEditor from '@/components/MarkdownEditor'
 
 interface Note {
   id: string
@@ -80,13 +81,11 @@ export default function EditForm({ note }: { note: Note }) {
             <label htmlFor="content" className="block text-sm font-medium text-gray-300 mb-2">
               Contenu (Markdown)
             </label>
-            <textarea
+            <MarkdownEditor
               id="content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
+              onChange={setContent}
               rows={15}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               placeholder="Contenu de la note en Markdown..."
             />
           </div>

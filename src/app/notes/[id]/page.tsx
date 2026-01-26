@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import DeleteButton from './DeleteButton'
 import EditForm from './EditForm'
+import MarkdownRenderer from '@/components/MarkdownRenderer'
 
 interface Note {
   id: string
@@ -114,11 +115,8 @@ export default async function NotePage({
             </div>
           </header>
 
-          <div className="prose prose-invert max-w-none">
-            {/* Simple markdown rendering - could be enhanced with react-markdown */}
-            <div className="whitespace-pre-wrap text-gray-300 leading-relaxed">
-              {note.content}
-            </div>
+          <div className="mt-6">
+            <MarkdownRenderer content={note.content} />
           </div>
 
           <footer className="mt-8 pt-6 border-t border-gray-700 text-sm text-gray-500">

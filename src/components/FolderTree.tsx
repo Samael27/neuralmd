@@ -2,13 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { FolderNode } from '@/lib/folders'
 
 interface FolderTreeProps {
   tree: FolderNode
   selectedPath?: string
-  onSelect?: (path: string) => void
 }
 
 function FolderItem({ 
@@ -100,7 +98,7 @@ function FolderItem({
   )
 }
 
-export default function FolderTree({ tree, selectedPath, onSelect }: FolderTreeProps) {
+export default function FolderTree({ tree, selectedPath }: FolderTreeProps) {
   return (
     <nav className="text-sm">
       <div className="mb-3 px-2">
@@ -127,7 +125,6 @@ export default function FolderTree({ tree, selectedPath, onSelect }: FolderTreeP
         <FolderItem 
           node={tree} 
           selectedPath={selectedPath}
-          onSelect={onSelect}
         />
       ) : (
         <p className="px-2 text-xs text-gray-500 italic">

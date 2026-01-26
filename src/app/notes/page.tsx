@@ -3,7 +3,8 @@ import SearchBar from '@/components/SearchBar'
 import NotesList from '@/components/NotesList'
 import ImportExportButtons from '@/components/ImportExportButtons'
 import FolderTree from '@/components/FolderTree'
-import SortSelector, { sortNotes, SortOption } from '@/components/SortSelector'
+import SortSelector from '@/components/SortSelector'
+import { sortNotes, SortOption } from '@/lib/sorting'
 import { buildFolderTree } from '@/lib/folders'
 
 interface Note {

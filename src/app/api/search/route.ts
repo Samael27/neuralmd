@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateEmbedding, isEmbeddingEnabled } from '@/lib/embeddings'
 import { authCheck, authErrorResponse } from '@/lib/auth'
+import { scopeByUser, isMultiTenant } from '@/lib/multi-tenant'
 import { z } from 'zod'
 
 const searchSchema = z.object({
@@ -21,11 +22,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { query, limit, threshold } = searchSchema.parse(body)
     
+    // Multi-tenant: scope by user
+    const userScope = scopeByUser(auth.userId)
+    
     // Check if embeddings are enabled
     if (!isEmbeddingEnabled()) {
       // Fallback to basic text search
       const results = await prisma.note.findMany({
         where: {
+          ...userScope,
           OR: [
             { title: { contains: query, mode: 'insensitive' } },
             { content: { contains: query, mode: 'insensitive' } },
@@ -64,22 +69,43 @@ export async function POST(request: NextRequest) {
     
     // Perform semantic search using cosine similarity
     const embeddingStr = `[${queryEmbedding.join(',')}]`
-    const results = await prisma.$queryRaw`
-      SELECT 
-        id,
-        title,
-        content,
-        tags,
-        source,
-        "createdAt",
-        "updatedAt",
-        1 - (embedding <=> ${embeddingStr}::vector) as similarity
-      FROM notes
-      WHERE embedding IS NOT NULL
-        AND 1 - (embedding <=> ${embeddingStr}::vector) > ${threshold}
-      ORDER BY embedding <=> ${embeddingStr}::vector
-      LIMIT ${limit}
-    `
+    const userId = auth.userId ?? null
+    
+    // Multi-tenant: add user filter to semantic search
+    const results = isMultiTenant() 
+      ? await prisma.$queryRaw`
+          SELECT 
+            id,
+            title,
+            content,
+            tags,
+            source,
+            "createdAt",
+            "updatedAt",
+            1 - (embedding <=> ${embeddingStr}::vector) as similarity
+          FROM notes
+          WHERE embedding IS NOT NULL
+            AND "userId" = ${userId}
+            AND 1 - (embedding <=> ${embeddingStr}::vector) > ${threshold}
+          ORDER BY embedding <=> ${embeddingStr}::vector
+          LIMIT ${limit}
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            id,
+            title,
+            content,
+            tags,
+            source,
+            "createdAt",
+            "updatedAt",
+            1 - (embedding <=> ${embeddingStr}::vector) as similarity
+          FROM notes
+          WHERE embedding IS NOT NULL
+            AND 1 - (embedding <=> ${embeddingStr}::vector) > ${threshold}
+          ORDER BY embedding <=> ${embeddingStr}::vector
+          LIMIT ${limit}
+        `
     
     return NextResponse.json({
       query,

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { generateEmbedding } from '@/lib/embeddings'
 import { detectSecrets } from '@/lib/secrets-detector'
 import { authCheck, authErrorResponse } from '@/lib/auth'
+import { scopeByUser, isMultiTenant } from '@/lib/multi-tenant'
 import { z } from 'zod'
 
 // Validation schema for updates
@@ -27,8 +28,11 @@ export async function GET(
   const { id } = await params
   
   try {
-    const note = await prisma.note.findUnique({
-      where: { id },
+    // Multi-tenant: scope by user
+    const userScope = scopeByUser(auth.userId)
+    
+    const note = await prisma.note.findFirst({
+      where: { id, ...userScope },
       select: {
         id: true,
         title: true,
@@ -74,8 +78,11 @@ export async function PUT(
     const body = await request.json()
     const data = updateNoteSchema.parse(body)
     
-    // Check if note exists
-    const existing = await prisma.note.findUnique({ where: { id } })
+    // Multi-tenant: scope by user
+    const userScope = scopeByUser(auth.userId)
+    
+    // Check if note exists (and belongs to user in multi-tenant mode)
+    const existing = await prisma.note.findFirst({ where: { id, ...userScope } })
     if (!existing) {
       return NextResponse.json(
         { error: 'Note not found' },
@@ -188,7 +195,10 @@ export async function DELETE(
   const { id } = await params
   
   try {
-    const note = await prisma.note.findUnique({ where: { id } })
+    // Multi-tenant: scope by user
+    const userScope = scopeByUser(auth.userId)
+    
+    const note = await prisma.note.findFirst({ where: { id, ...userScope } })
     if (!note) {
       return NextResponse.json(
         { error: 'Note not found' },

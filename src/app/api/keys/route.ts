@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { generateApiKey, hashApiKey } from '@/lib/auth'
+import { generateApiKey, hashApiKey, authCheck } from '@/lib/auth'
+import { isMultiTenant, checkPlanLimits, Plan } from '@/lib/multi-tenant'
 import { z } from 'zod'
 
 // Admin secret for managing keys (set via env)
@@ -20,14 +21,21 @@ const createKeySchema = z.object({
   expiresInDays: z.number().optional(),
 })
 
-// GET /api/keys - List all API keys (admin only)
+// GET /api/keys - List API keys
+// Admin: sees all keys
+// User (multi-tenant): sees only their keys
 export async function GET(request: NextRequest) {
-  if (!isAdmin(request)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  const admin = isAdmin(request)
   
-  try {
+  // In multi-tenant mode, users can list their own keys
+  if (!admin && isMultiTenant()) {
+    const auth = await authCheck(request)
+    if (!auth.authenticated || !auth.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    
     const keys = await prisma.apiKey.findMany({
+      where: { userId: auth.userId },
       select: {
         id: true,
         name: true,
@@ -40,15 +48,65 @@ export async function GET(request: NextRequest) {
     })
     
     return NextResponse.json({ keys })
+  }
+  
+  // Admin access or single-tenant mode
+  if (!admin) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+  
+  try {
+    const keys = await prisma.apiKey.findMany({
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        createdAt: true,
+        userId: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+    
+    return NextResponse.json({ keys })
   } catch (error) {
     console.error('Failed to list keys:', error)
     return NextResponse.json({ error: 'Failed to list keys' }, { status: 500 })
   }
 }
 
-// POST /api/keys - Create a new API key (admin only)
+// POST /api/keys - Create a new API key
+// Admin: can create keys for anyone
+// User (multi-tenant): can create keys for themselves (within plan limits)
 export async function POST(request: NextRequest) {
-  if (!isAdmin(request)) {
+  const admin = isAdmin(request)
+  let userId: string | null = null
+  
+  // In multi-tenant mode, users can create their own keys
+  if (!admin && isMultiTenant()) {
+    const auth = await authCheck(request)
+    if (!auth.authenticated || !auth.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    userId = auth.userId
+    
+    // Check plan limits
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    
+    const keyCount = await prisma.apiKey.count({ where: { userId, isActive: true } })
+    const limitCheck = checkPlanLimits(user.plan as Plan, { apiKeysCount: keyCount })
+    
+    if (!limitCheck.allowed) {
+      return NextResponse.json({ 
+        error: 'Plan limit reached', 
+        details: limitCheck.errors 
+      }, { status: 403 })
+    }
+  } else if (!admin) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
   
@@ -73,6 +131,7 @@ export async function POST(request: NextRequest) {
         name,
         keyHash,
         expiresAt,
+        userId, // Will be null for admin-created keys in single-tenant mode
       },
       select: {
         id: true,
@@ -97,17 +156,36 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/keys?id=xxx - Revoke an API key (admin only)
+// DELETE /api/keys?id=xxx - Revoke an API key
+// Admin: can revoke any key
+// User (multi-tenant): can only revoke their own keys
 export async function DELETE(request: NextRequest) {
-  if (!isAdmin(request)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  const admin = isAdmin(request)
   
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   
   if (!id) {
     return NextResponse.json({ error: 'Key ID required' }, { status: 400 })
+  }
+  
+  // In multi-tenant mode, users can revoke their own keys
+  if (!admin && isMultiTenant()) {
+    const auth = await authCheck(request)
+    if (!auth.authenticated || !auth.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    
+    // Verify the key belongs to the user
+    const key = await prisma.apiKey.findFirst({ 
+      where: { id, userId: auth.userId } 
+    })
+    
+    if (!key) {
+      return NextResponse.json({ error: 'Key not found' }, { status: 404 })
+    }
+  } else if (!admin) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
   
   try {

@@ -30,7 +30,11 @@ model Note {
   // Source tracking (human or AI)
   source    String   @default("human") // "human" | "ai" | "import"
   sourceRef String?  // Optional reference (e.g., AI session ID)
-
+  
+  // Multi-tenant support (optional - null for single-tenant mode)
+  userId    String?
+  
+  @@index([userId])
   @@map("notes")
 }
 
@@ -53,6 +57,33 @@ model Connection {
   @@map("connections")
 }
 
+// Multi-tenant: User accounts (only used when MULTI_TENANT=true)
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?   // For email/password auth
+  
+  // OAuth
+  provider      String?   // "google" | "github" | null (email/password)
+  providerId    String?   // OAuth provider user ID
+  
+  // Subscription/billing
+  plan          String    @default("free") // "free" | "pro" | "team"
+  stripeCustomerId String?
+  
+  // Limits
+  notesCount    Int       @default(0)
+  apiCallsCount Int       @default(0)
+  apiCallsResetAt DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([provider, providerId])
+  @@map("users")
+}
+
 model ApiKey {
   id          String    @id @default(cuid())
   name        String    // Friendly name for the key
@@ -67,5 +98,9 @@ model ApiKey {
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
   
+  // Multi-tenant support (optional - null for single-tenant/admin keys)
+  userId      String?
+  
+  @@index([userId])
   @@map("api_keys")
 }

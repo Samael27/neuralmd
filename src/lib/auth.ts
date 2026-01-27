@@ -58,6 +58,7 @@ export async function validateApiKey(key: string): Promise<{
   valid: boolean
   keyId?: string
   name?: string
+  userId?: string  // For multi-tenant mode
   error?: string
 }> {
   if (!key || !key.startsWith('nmd_')) {
@@ -89,7 +90,12 @@ export async function validateApiKey(key: string): Promise<{
       data: { lastUsedAt: new Date() }
     })
     
-    return { valid: true, keyId: apiKey.id, name: apiKey.name }
+    return { 
+      valid: true, 
+      keyId: apiKey.id, 
+      name: apiKey.name,
+      userId: apiKey.userId ?? undefined  // Multi-tenant: API key is tied to a user
+    }
   } catch (error) {
     console.error('API key validation error:', error)
     return { valid: false, error: 'Validation failed' }
@@ -128,6 +134,7 @@ export interface AuthResult {
   authenticated: boolean
   keyId?: string
   keyName?: string
+  userId?: string  // For multi-tenant mode
   error?: string
   rateLimited?: boolean
 }
@@ -183,7 +190,8 @@ export async function authCheck(request: NextRequest): Promise<AuthResult> {
   return {
     authenticated: true,
     keyId: validation.keyId,
-    keyName: validation.name
+    keyName: validation.name,
+    userId: validation.userId  // Multi-tenant: pass through user ID
   }
 }
 

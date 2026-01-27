@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { generateEmbedding, isEmbeddingEnabled, getEmbeddingDimensions } from '@/lib/embeddings'
 import { detectSecrets } from '@/lib/secrets-detector'
 import { authCheck, authErrorResponse } from '@/lib/auth'
+import { scopeByUser, withUserId, isMultiTenant } from '@/lib/multi-tenant'
 import { z } from 'zod'
 
 // Validation schema
@@ -30,7 +31,9 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') || '0')
   const tag = searchParams.get('tag')
   
-  const where = tag ? { tags: { has: tag } } : {}
+  // Multi-tenant: scope by user
+  const userScope = scopeByUser(auth.userId)
+  const where = { ...userScope, ...(tag ? { tags: { has: tag } } : {}) }
   
   const notes = await prisma.note.findMany({
     where,
@@ -102,12 +105,16 @@ export async function POST(request: NextRequest) {
     
     let note
     
+    // Multi-tenant: get userId for new notes
+    const userIdData = withUserId(auth.userId)
+    
     if (embedding) {
       // Create note with embedding using raw SQL
       // Cast to vector without dimensions - PostgreSQL infers from data
       const embeddingStr = `[${embedding.join(',')}]`
+      const userId = isMultiTenant() ? auth.userId : null
       note = await prisma.$queryRaw`
-        INSERT INTO notes (id, title, content, tags, source, "sourceRef", embedding, "createdAt", "updatedAt")
+        INSERT INTO notes (id, title, content, tags, source, "sourceRef", embedding, "userId", "createdAt", "updatedAt")
         VALUES (
           gen_random_uuid()::text,
           ${data.title},
@@ -116,6 +123,7 @@ export async function POST(request: NextRequest) {
           ${data.source},
           ${data.sourceRef || null},
           ${embeddingStr}::vector,
+          ${userId},
           NOW(),
           NOW()
         )
@@ -130,6 +138,7 @@ export async function POST(request: NextRequest) {
           tags: data.tags,
           source: data.source,
           sourceRef: data.sourceRef,
+          ...userIdData,  // Multi-tenant: add userId
         },
         select: {
           id: true,

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-tenant support** (SaaS-ready)
+  - User accounts with email/password authentication
+  - Per-user data isolation (notes, API keys)
+  - Plan-based limits (free/pro/team)
+  - `/api/auth/signup` and `/api/auth/login` endpoints
+  - Enable with `MULTI_TENANT=true`
 - Virtual folders via tag naming convention (`parent/child`)
 - Markdown editor with toolbar and preview toggle
 - Keyboard shortcuts (Ctrl+B, Ctrl+I, Ctrl+K, etc.)
@@ -21,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved Docker Compose setup for Coolify deployment
 - Better healthchecks for production
+- API keys can now be tied to users (multi-tenant mode)
 
 ### Fixed
 - Server Actions for UI mutations (401 errors)

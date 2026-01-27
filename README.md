@@ -17,6 +17,35 @@ NeuralMD is your **second brain** — a place where humans and AI collaborate to
 - **🔐 Secure** — API keys + optional Basic Auth for web UI
 - **🆓 No API Keys Required** — Uses Ollama for free local embeddings
 - **📝 Markdown First** — Simple, portable, version-control friendly
+- **👥 Multi-Tenant Ready** — SaaS mode with user accounts and plan limits
+
+## 🏢 Multi-Tenant Mode (SaaS)
+
+NeuralMD can run in multi-tenant mode for SaaS deployments:
+
+```bash
+# Enable multi-tenant mode
+MULTI_TENANT=true
+```
+
+**Features when enabled:**
+- User signup/login with email & password
+- Per-user data isolation (notes, API keys)
+- Plan-based limits (free/pro/team)
+- Ready for Stripe billing integration
+
+**API Endpoints:**
+```bash
+# Sign up
+curl -X POST /api/auth/signup \
+  -d '{"email": "user@example.com", "password": "secret123"}'
+
+# Login
+curl -X POST /api/auth/login \
+  -d '{"email": "user@example.com", "password": "secret123"}'
+```
+
+> In single-tenant mode (default), these endpoints are disabled.
 
 ## 🚀 Quick Start
 

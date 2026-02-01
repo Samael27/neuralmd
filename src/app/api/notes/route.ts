@@ -69,7 +69,16 @@ export async function POST(request: NextRequest) {
   }
   
   try {
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch (jsonError) {
+      console.error('Failed to parse JSON body:', jsonError)
+      return NextResponse.json(
+        { error: 'Invalid JSON', message: 'Request body contains invalid JSON. Check for unescaped characters.' },
+        { status: 400 }
+      )
+    }
     const data = createNoteSchema.parse(body)
     
     // 🔐 Security: Detect secrets in content

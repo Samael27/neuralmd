@@ -6,9 +6,12 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
-            🧠 NeuralMD
-          </h1>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src="/logo.png" alt="NeuralMD" className="w-16 h-16 rounded-full" />
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
+              NeuralMD
+            </h1>
+          </div>
           <p className="text-xl text-gray-400 mb-6">
             AI-Native Knowledge Base with Semantic Connections
           </p>

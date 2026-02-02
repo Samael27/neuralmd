@@ -148,7 +148,7 @@ export default async function NotesPage({
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <Link href="/" className="flex items-center gap-2 text-2xl font-bold">
-                <span>🧠</span>
+                <img src="/logo.png" alt="NeuralMD" className="h-8 w-8 rounded-full" />
                 <span className="bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
                   NeuralMD
                 </span>

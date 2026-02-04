@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import * as d3 from 'd3-force'
 
 // Dynamically import ForceGraph2D to avoid SSR issues
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
@@ -91,6 +92,7 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
   const [showLabels, setShowLabels] = useState(initialData.nodes.length <= 30)
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [currentZoom, setCurrentZoom] = useState(1)
+  const [spacing, setSpacing] = useState(3) // 1-5, controls how spread out nodes are
   
   // Update data when initialData changes (after navigation)
   useEffect(() => {
@@ -158,6 +160,33 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     }
   }, [])
 
+  // Configure d3 forces for better spacing
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg) return
+
+    const chargeStrength = -150 * spacing // More spacing = stronger repulsion
+    const linkDistance = 40 * spacing     // More spacing = longer links
+    const collisionRadius = 8 * spacing   // Prevent node overlap
+
+    // Strong repulsion between nodes
+    fg.d3Force('charge')?.strength(chargeStrength)
+    
+    // Longer links
+    fg.d3Force('link')?.distance(linkDistance)
+    
+    // Collision detection — nodes can't overlap
+    fg.d3Force('collision', d3.forceCollide((node: any) => {
+      return collisionRadius + (node.val || 1) * 2
+    }))
+    
+    // Weaker center gravity so nodes can spread
+    fg.d3Force('center')?.strength(0.03)
+
+    // Reheat simulation to apply changes
+    fg.d3ReheatSimulation()
+  }, [spacing, filteredData])
+
   const handleThresholdChange = (newThreshold: number) => {
     setThreshold(newThreshold)
     router.push(`/graph?threshold=${newThreshold}`)
@@ -177,7 +206,7 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     return {
       nodes: filteredData.nodes.map(n => ({
         ...n,
-        val: 1 + (connectionCount[n.id] || 0) * 0.5,
+        val: 1 + Math.min((connectionCount[n.id] || 0) * 0.3, 3), // cap size to avoid giant nodes
         folder: getPrimaryFolder(n.tags)
       })),
       links: filteredData.edges.map(e => ({
@@ -203,46 +232,49 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
 
   // Custom node rendering
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const nodeSize = (node.val || 1) * 2
+    const nodeRadius = Math.max(3, (node.val || 1) * 1.5)
     const folder = node.folder || 'uncategorized'
     const color = getFolderColor(folder)
     const isHovered = hoveredNode === node.id
     
     // Draw node circle
     ctx.beginPath()
-    ctx.arc(node.x, node.y, nodeSize, 0, 2 * Math.PI)
+    ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI)
     ctx.fillStyle = color
+    ctx.globalAlpha = isHovered ? 1 : 0.85
     ctx.fill()
+    ctx.globalAlpha = 1
     
     // Highlight on hover
     if (isHovered) {
       ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 2 / globalScale
+      ctx.lineWidth = 1.5 / globalScale
       ctx.stroke()
     }
     
     // Draw label if should show
     if (shouldShowLabel(node)) {
       const label = node.title?.slice(0, 25) + (node.title?.length > 25 ? '...' : '')
-      const fontSize = Math.max(10, 12 / globalScale)
+      const fontSize = Math.max(9, 11 / globalScale)
       ctx.font = `${fontSize}px Sans-Serif`
       ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
+      ctx.textBaseline = 'top'
       
       // Background for readability
       const textWidth = ctx.measureText(label).width
       const padding = 2
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.8)'
+      const labelY = node.y + nodeRadius + 3
+      ctx.fillStyle = 'rgba(17, 24, 39, 0.85)'
       ctx.fillRect(
         node.x - textWidth / 2 - padding,
-        node.y + nodeSize + 2,
+        labelY - 1,
         textWidth + padding * 2,
-        fontSize + padding
+        fontSize + padding * 2
       )
       
       // Label text
-      ctx.fillStyle = '#fff'
-      ctx.fillText(label, node.x, node.y + nodeSize + fontSize / 2 + 4)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.fillText(label, node.x, labelY + 1)
     }
   }, [hoveredNode, shouldShowLabel])
 
@@ -280,6 +312,21 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
               className="w-24"
             />
             <span className="w-10 text-right font-mono">{Math.round(threshold * 100)}%</span>
+          </label>
+
+          {/* Spacing slider */}
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400">Espacement:</span>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="0.5"
+              value={spacing}
+              onChange={(e) => setSpacing(parseFloat(e.target.value))}
+              className="w-24"
+            />
+            <span className="w-6 text-right font-mono">{spacing}</span>
           </label>
 
           {/* Labels toggle */}
@@ -354,7 +401,7 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
               height={dimensions.height}
               graphData={graphData}
               nodeLabel=""
-              nodeRelSize={6}
+              nodeRelSize={4}
               linkColor={() => 'rgba(100, 100, 100, 0.4)'}
               linkWidth={(link: any) => Math.max(0.5, link.value * 2)}
               onNodeClick={(node: any) => setSelectedNode(node as GraphNode)}

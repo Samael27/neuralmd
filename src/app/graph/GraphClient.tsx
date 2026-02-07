@@ -161,48 +161,108 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
   }, [])
 
   // Configure d3 forces for better spacing
+  // Use a ref to track spacing so we can force re-simulation
+  const spacingRef = useRef(spacing)
+  
+  useEffect(() => {
+    spacingRef.current = spacing
+  }, [spacing])
+  
   useEffect(() => {
     const fg = graphRef.current
     if (!fg) return
+    
+    // Small delay to ensure graph ref is initialized
+    const timer = setTimeout(() => {
+      const fg2 = graphRef.current
+      if (!fg2) return
+      
+      const s = spacingRef.current
+      const nodeCount = filteredData?.nodes?.length || 1
+      // Scale forces based on node count — more nodes need more space
+      const densityFactor = Math.max(1, Math.sqrt(nodeCount / 10))
+      
+      const chargeStrength = -300 * s * densityFactor
+      const linkDistance = 80 * s
+      const collisionRadius = 15 * s
 
+      // Strong repulsion between nodes
+      const charge = fg2.d3Force('charge')
+      if (charge) {
+        charge.strength(chargeStrength)
+        charge.distanceMax(600 * s)
+      }
+      
+      // Longer links with strength that weakens for heavily connected nodes
+      const link = fg2.d3Force('link')
+      if (link) {
+        link.distance(linkDistance)
+        link.strength((l: any) => {
+          const sourceLinks = typeof l.source === 'object' ? (l.source as any).__links || 1 : 1
+          const targetLinks = typeof l.target === 'object' ? (l.target as any).__links || 1 : 1
+          return 0.3 / Math.min(sourceLinks, targetLinks)
+        })
+      }
+      
+      // Collision detection — nodes can't overlap
+      fg2.d3Force('collision', d3.forceCollide((node: any) => {
+        return collisionRadius + (node.val || 1) * 3
+      }).iterations(3))
+      
+      // Weaker center gravity so nodes spread
+      fg2.d3Force('center')?.strength(0.01)
+
+      // Force reheat — set alpha high and restart
+      fg2.d3ReheatSimulation()
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [filteredData])
+  
+  // Separate effect for spacing changes — force a strong reheat
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg) return
+    
+    const s = spacing
     const nodeCount = filteredData?.nodes?.length || 1
-    // Scale forces based on node count — more nodes need more space
     const densityFactor = Math.max(1, Math.sqrt(nodeCount / 10))
     
-    const chargeStrength = -300 * spacing * densityFactor // Much stronger repulsion
-    const linkDistance = 80 * spacing                      // Much longer links
-    const collisionRadius = 15 * spacing                   // Bigger collision zone
+    const chargeStrength = -300 * s * densityFactor
+    const linkDistance = 80 * s
+    const collisionRadius = 15 * s
 
-    // Strong repulsion between nodes — use theta for performance with many nodes
     const charge = fg.d3Force('charge')
     if (charge) {
       charge.strength(chargeStrength)
-      charge.distanceMax(600 * spacing) // Limit long-range repulsion for perf
+      charge.distanceMax(600 * s)
     }
     
-    // Longer links with strength that weakens for heavily connected nodes
     const link = fg.d3Force('link')
     if (link) {
       link.distance(linkDistance)
-      link.strength((l: any) => {
-        // Weaker links for heavily connected nodes = more spread
-        const sourceLinks = typeof l.source === 'object' ? (l.source as any).__links || 1 : 1
-        const targetLinks = typeof l.target === 'object' ? (l.target as any).__links || 1 : 1
-        return 0.3 / Math.min(sourceLinks, targetLinks)
-      })
     }
     
-    // Collision detection — nodes can't overlap, includes label space
     fg.d3Force('collision', d3.forceCollide((node: any) => {
       return collisionRadius + (node.val || 1) * 3
     }).iterations(3))
     
-    // Much weaker center gravity so nodes can spread out naturally
     fg.d3Force('center')?.strength(0.01)
 
-    // Reheat simulation to apply changes
+    // Force strong reheat so the graph actually re-layouts
     fg.d3ReheatSimulation()
-  }, [spacing, filteredData])
+    // Also manually set alpha high in case reheat doesn't do enough
+    const engine = fg.d3Force('charge')
+    if (fg.d3Force) {
+      // Access the simulation directly to force alpha
+      try {
+        const sim = (fg as any)._simulation || (fg as any).d3ForceLayout
+        if (sim && sim.alpha) {
+          sim.alpha(1).restart()
+        }
+      } catch {}
+    }
+  }, [spacing])
 
   const handleThresholdChange = (newThreshold: number) => {
     setThreshold(newThreshold)
@@ -268,11 +328,9 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
       ctx.stroke()
     }
     
-    // Draw label — adaptive based on zoom and context
+    // Draw label — only on hover when labels are off
     const showThisLabel = isHovered || 
-      (showLabels && globalScale > 0.8) || 
-      (!showLabels && globalScale > 2.5) ||
-      (!showLabels && node.val > 2.2)
+      (showLabels && globalScale > 0.8)
     
     if (showThisLabel) {
       // Truncate based on zoom — more space = longer labels

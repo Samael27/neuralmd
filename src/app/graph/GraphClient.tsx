@@ -92,7 +92,7 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
   const [showLabels, setShowLabels] = useState(initialData.nodes.length <= 30)
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [currentZoom, setCurrentZoom] = useState(1)
-  const [spacing, setSpacing] = useState(3) // 1-5, controls how spread out nodes are
+  const [spacing, setSpacing] = useState(4) // 1-5, controls how spread out nodes are
   
   // Update data when initialData changes (after navigation)
   useEffect(() => {
@@ -165,23 +165,40 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     const fg = graphRef.current
     if (!fg) return
 
-    const chargeStrength = -150 * spacing // More spacing = stronger repulsion
-    const linkDistance = 40 * spacing     // More spacing = longer links
-    const collisionRadius = 8 * spacing   // Prevent node overlap
+    const nodeCount = filteredData?.nodes?.length || 1
+    // Scale forces based on node count — more nodes need more space
+    const densityFactor = Math.max(1, Math.sqrt(nodeCount / 10))
+    
+    const chargeStrength = -300 * spacing * densityFactor // Much stronger repulsion
+    const linkDistance = 80 * spacing                      // Much longer links
+    const collisionRadius = 15 * spacing                   // Bigger collision zone
 
-    // Strong repulsion between nodes
-    fg.d3Force('charge')?.strength(chargeStrength)
+    // Strong repulsion between nodes — use theta for performance with many nodes
+    const charge = fg.d3Force('charge')
+    if (charge) {
+      charge.strength(chargeStrength)
+      charge.distanceMax(600 * spacing) // Limit long-range repulsion for perf
+    }
     
-    // Longer links
-    fg.d3Force('link')?.distance(linkDistance)
+    // Longer links with strength that weakens for heavily connected nodes
+    const link = fg.d3Force('link')
+    if (link) {
+      link.distance(linkDistance)
+      link.strength((l: any) => {
+        // Weaker links for heavily connected nodes = more spread
+        const sourceLinks = typeof l.source === 'object' ? (l.source as any).__links || 1 : 1
+        const targetLinks = typeof l.target === 'object' ? (l.target as any).__links || 1 : 1
+        return 0.3 / Math.min(sourceLinks, targetLinks)
+      })
+    }
     
-    // Collision detection — nodes can't overlap
+    // Collision detection — nodes can't overlap, includes label space
     fg.d3Force('collision', d3.forceCollide((node: any) => {
-      return collisionRadius + (node.val || 1) * 2
-    }))
+      return collisionRadius + (node.val || 1) * 3
+    }).iterations(3))
     
-    // Weaker center gravity so nodes can spread
-    fg.d3Force('center')?.strength(0.03)
+    // Much weaker center gravity so nodes can spread out naturally
+    fg.d3Force('center')?.strength(0.01)
 
     // Reheat simulation to apply changes
     fg.d3ReheatSimulation()
@@ -204,11 +221,15 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     })
     
     return {
-      nodes: filteredData.nodes.map(n => ({
-        ...n,
-        val: 1 + Math.min((connectionCount[n.id] || 0) * 0.3, 3), // cap size to avoid giant nodes
-        folder: getPrimaryFolder(n.tags)
-      })),
+      nodes: filteredData.nodes.map(n => {
+        const conns = connectionCount[n.id] || 0
+        return {
+          ...n,
+          val: 1 + Math.min(conns * 0.2, 2), // smaller cap, gentler scaling
+          folder: getPrimaryFolder(n.tags),
+          __links: conns // store for link strength calc
+        }
+      }),
       links: filteredData.edges.map(e => ({
         source: e.source,
         target: e.target,
@@ -217,66 +238,78 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
     }
   }, [filteredData])
 
-  // Determine if label should be shown for a node
-  const shouldShowLabel = useCallback((node: any): boolean => {
-    // Always show if labels toggle is on
-    if (showLabels) return true
-    // Show if node is hovered
-    if (hoveredNode === node.id) return true
-    // Show if zoomed in enough
-    if (currentZoom > 2) return true
-    // Show for hub nodes (>3 connections)
-    if (node.val > 2.5) return true
-    return false
-  }, [showLabels, hoveredNode, currentZoom])
-
   // Custom node rendering
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const nodeRadius = Math.max(3, (node.val || 1) * 1.5)
+    const nodeRadius = Math.max(2.5, (node.val || 1) * 1.2)
     const folder = node.folder || 'uncategorized'
     const color = getFolderColor(folder)
     const isHovered = hoveredNode === node.id
+    
+    // Glow effect on hover
+    if (isHovered) {
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, nodeRadius + 4 / globalScale, 0, 2 * Math.PI)
+      ctx.fillStyle = color + '30'
+      ctx.fill()
+    }
     
     // Draw node circle
     ctx.beginPath()
     ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI)
     ctx.fillStyle = color
-    ctx.globalAlpha = isHovered ? 1 : 0.85
+    ctx.globalAlpha = isHovered ? 1 : 0.8
     ctx.fill()
     ctx.globalAlpha = 1
     
-    // Highlight on hover
+    // Border on hover
     if (isHovered) {
       ctx.strokeStyle = '#fff'
       ctx.lineWidth = 1.5 / globalScale
       ctx.stroke()
     }
     
-    // Draw label if should show
-    if (shouldShowLabel(node)) {
-      const label = node.title?.slice(0, 25) + (node.title?.length > 25 ? '...' : '')
-      const fontSize = Math.max(9, 11 / globalScale)
-      ctx.font = `${fontSize}px Sans-Serif`
+    // Draw label — adaptive based on zoom and context
+    const showThisLabel = isHovered || 
+      (showLabels && globalScale > 0.8) || 
+      (!showLabels && globalScale > 2.5) ||
+      (!showLabels && node.val > 2.2)
+    
+    if (showThisLabel) {
+      // Truncate based on zoom — more space = longer labels
+      const maxChars = globalScale > 3 ? 40 : globalScale > 1.5 ? 30 : 20
+      const label = node.title?.slice(0, maxChars) + (node.title?.length > maxChars ? '…' : '')
+      const fontSize = isHovered 
+        ? Math.max(10, 13 / globalScale)
+        : Math.max(8, 10 / globalScale)
+      ctx.font = `${isHovered ? 'bold ' : ''}${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
       
-      // Background for readability
+      // Background pill for readability
       const textWidth = ctx.measureText(label).width
-      const padding = 2
-      const labelY = node.y + nodeRadius + 3
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.85)'
-      ctx.fillRect(
-        node.x - textWidth / 2 - padding,
-        labelY - 1,
-        textWidth + padding * 2,
-        fontSize + padding * 2
-      )
+      const padding = 3
+      const labelY = node.y + nodeRadius + 4 / globalScale
+      const pillHeight = fontSize + padding * 2
+      const pillWidth = textWidth + padding * 2 + 4
+      const pillRadius = 3 / globalScale
+      
+      // Background pill — use roundRect if available, fallback to fillRect
+      const pillX = node.x - pillWidth / 2
+      const pillY2 = labelY - 1
+      ctx.fillStyle = isHovered ? 'rgba(17, 24, 39, 0.95)' : 'rgba(17, 24, 39, 0.75)'
+      if (ctx.roundRect) {
+        ctx.beginPath()
+        ctx.roundRect(pillX, pillY2, pillWidth, pillHeight, pillRadius)
+        ctx.fill()
+      } else {
+        ctx.fillRect(pillX, pillY2, pillWidth, pillHeight)
+      }
       
       // Label text
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-      ctx.fillText(label, node.x, labelY + 1)
+      ctx.fillStyle = isHovered ? '#fff' : 'rgba(255, 255, 255, 0.85)'
+      ctx.fillText(label, node.x, labelY + padding)
     }
-  }, [hoveredNode, shouldShowLabel])
+  }, [hoveredNode, showLabels])
 
   const handleZoom = useCallback((transform: { k: number }) => {
     setCurrentZoom(transform.k)
@@ -320,11 +353,11 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
             <input
               type="range"
               min="1"
-              max="5"
+              max="8"
               step="0.5"
               value={spacing}
               onChange={(e) => setSpacing(parseFloat(e.target.value))}
-              className="w-24"
+              className="w-32"
             />
             <span className="w-6 text-right font-mono">{spacing}</span>
           </label>
@@ -401,18 +434,20 @@ export default function GraphClient({ initialData, initialThreshold }: Props) {
               height={dimensions.height}
               graphData={graphData}
               nodeLabel=""
-              nodeRelSize={4}
-              linkColor={() => 'rgba(100, 100, 100, 0.4)'}
-              linkWidth={(link: any) => Math.max(0.5, link.value * 2)}
+              nodeRelSize={3}
+              linkColor={() => 'rgba(100, 120, 140, 0.2)'}
+              linkWidth={(link: any) => Math.max(0.3, link.value * 1.5)}
+              linkDirectionalParticles={0}
               onNodeClick={(node: any) => setSelectedNode(node as GraphNode)}
               onNodeHover={(node: any) => setHoveredNode(node?.id || null)}
               onZoom={handleZoom}
               backgroundColor="#111827"
               nodeCanvasObject={nodeCanvasObject}
               nodeCanvasObjectMode={() => 'replace'}
-              cooldownTicks={100}
-              d3AlphaDecay={0.02}
-              d3VelocityDecay={0.3}
+              cooldownTicks={200}
+              warmupTicks={50}
+              d3AlphaDecay={0.015}
+              d3VelocityDecay={0.25}
             />
           )}
         </div>

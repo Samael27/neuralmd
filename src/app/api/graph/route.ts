@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   
   const { searchParams } = new URL(request.url)
   const threshold = parseFloat(searchParams.get('threshold') || '0.3')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = parseInt(searchParams.get('limit') || '100')
   
   try {
     // Get all notes with embeddings
